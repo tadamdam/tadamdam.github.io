@@ -1,0 +1,915 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <meta name="author" content="Tomasz Szreder, Tomasz.Szreder(at)dynatrace.com, Tomasz.Szreder(at)gmail.com">
+    <meta name="description" content="Playground for real-time testing of PEG.js grammar and Sizzle.js pseudo-selectors">
+    <title>CQL Playground</title>
+    <link href="https://fonts.googleapis.com/css?family=Open+Sans:300,400,600" rel="stylesheet"> 
+    <style type="text/css">
+        body {
+            font-family: 'Open Sans', sans-serif;
+        }
+        a,
+         a:visited,
+         a:active {
+            text-decoration: none;
+            color: rgb(192, 192, 192);
+        }
+
+        /* Flexbox tips by xzegga (https://stackoverflow.com/a/23389378) */
+        .flexContainer {
+            display: -webkit-box; /* OLD - iOS 6-, Safari 3.1-6 */
+            display: -moz-box; /* OLD - Firefox 19- (buggy but mostly works) */
+            display: -ms-flexbox; /* TWEENER - IE 10 */
+            display: -webkit-flex; /* NEW - Chrome */
+            display: flex; /* NEW, Spec - Opera 12.1, Firefox 20+ */
+            -ms-flex-direction: column;
+            -moz-flex-direction: column;
+            -webkit-flex-direction: column;
+            flex-direction: column;
+        }
+        .flexChildFillAll {
+            -webkit-box-flex: 1; /* OLD - iOS 6-, Safari 3.1-6 */
+            -moz-box-flex: 1; /* OLD - Firefox 19- */
+            -webkit-flex: 1; /* Chrome */
+            -ms-flex: 1; /* IE 10 */
+            flex: 1; /* NEW, */
+        }
+
+        /* Grammar editor */
+        #grammarEditorContainer {
+            position: fixed;
+            left: 0; top: 0; bottom: 25px;
+            width: 480px;
+            background: rgb(244, 244, 244);
+            box-sizing: border-box;
+        }
+        #grammarError, 
+        #queryError {
+                background: rgb(167, 61, 61);
+                padding: 16px;
+                font-family: Consolas, monospace;
+                font-size: 14px;
+                color: white;
+                display: none;
+        }
+        #grammarEditor.error    + #grammarError,
+        #queryEditor.error      + #queryError {
+            display: block;
+        }
+        #grammarError > .errorType,
+        #grammarError > .location,
+        #queryError > .errorType,
+        #queryError > .location {
+                font-size: 12px;
+                letter-spacing: 1px;
+                display: block;
+                text-transform: uppercase;
+        }
+        #grammarError > .message,
+        #queryError > .message {
+            padding: 0 0 8px;
+            display: block;
+        }
+        #grammarError > .errorType,
+        #queryError > .errorType {
+            display: none;
+        }
+
+        #grammarEditor.error,
+        #queryEditor.error {
+            background-color: rgb(255, 232, 232);
+        }
+
+        span.fieldDescription {
+            color: rgb(167, 167, 167);
+            text-transform: uppercase;
+            letter-spacing: 4px;
+            font-size: 10px;
+            display: block;
+            text-align: right;
+            padding: 0 32px;
+            margin-top: 24px;
+            position: absolute;
+            z-index: 1;
+            width: 100%;
+            box-sizing: border-box;
+        }
+        
+        #queryEditorContainer > span.fieldDescription {
+            text-align: left;
+        }
+
+        /* Query editor and notebooks */
+        #queryEditorAndElements {
+            position: fixed;
+            top: 0; bottom: 25px; left: 480px; right: 0;
+            /*height: 100%;*/
+        }
+
+        /* Query editor */
+        #queryEditorContainer {
+            background: #fafafa;
+        }
+        #queryEditor,
+        #grammarEditor {
+            display: block;
+            width: 100%; height: 100%;
+            box-sizing: border-box;
+            background: transparent;
+        }
+        
+        #queryEditor {
+            font-size: 18px;
+        }
+        #parsedQueryOutput {
+            font-family: Consolas, monospace;
+            padding: 12px 32px;
+            font-size: 12px;
+             background: rgb(245, 245, 245); 
+            /*border-top: 1px dotted #cacaca;*/
+            color: #7d7d7d;
+        }
+        /*#parsedQueryOutput::before {
+            content: '.filter( "';
+        }
+        #parsedQueryOutput::after {
+            content: '" )';
+        }*/
+        #parsedQueryOutput::before,            
+        #parsedQueryOutput::after {
+            color: silver;
+        }
+        #parsedQueryOutput .sizzleFilterExpr {
+            display: block;
+        }
+
+        #ntbAllNotebooks {
+            overflow-y: scroll;
+            padding: 24px;
+        }
+
+        /* Notebook containers styles */
+        .ntbContainer {
+            display: inline-block;
+            position: relative;
+            padding: 6px;
+            /*font-family: Consolas, monospace;*/
+            color: #555;
+            margin: 6px 18px;
+            width: 340px;
+        }
+
+        .ntbBrandAndName {
+            display: block;
+            font-weight: 400;
+            font-size: 14px;
+            color: black;
+        }
+        .ntbPrice {
+            font-size: 12px;
+            font-weight: 300;
+            /*letter-spacing: 1px;*/
+            position: absolute;
+            top: 4px; right: 12px;
+        }
+        .ntbConfig {
+            display: block;
+            font-size: 12px;
+        }
+        .ntbAvailableQuantity {
+            display: block;
+            font-size: 12px;
+            border-top: 1px dotted rgb(192, 192, 192);
+            margin-top: 4px;
+            text-align: left;
+            padding: 2px 0;
+        }
+
+        /* Filtering effect rules: hide all not matching the query */
+        /*.ntbContainer.pass {
+            
+        }*/
+        .ntbContainer.fail {
+            opacity: 0.4;
+            display: none;
+        }
+
+        #aboutBox {            
+            /*position: fixed;
+            bottom: 0; right: 24px;
+            text-align: right;
+            background: rgba(255, 255, 255, 0.8);
+            padding: 8px;
+            font-size: 11px;
+            color: rgb(70, 70, 70);*/
+
+            position: fixed;
+            right: 0; bottom: 0; left: 0;
+            text-align: center;
+            background: rgba(35, 35, 35, 0.8);
+            padding: 5px;
+            font-size: 11px;
+            color: rgb(236, 236, 236);
+            /* font-weight: 600; */
+            
+            z-index: 2;
+        }
+        #aboutBox .Separator {
+            margin: 0 6px;
+            display: inline-block;
+        }
+
+
+        #helpBox {
+            position: fixed;
+            top: 0; right: 0;
+            padding: 24px;
+        }
+        #helpBox a.showHelp {
+            color: rgb(99, 99, 99);
+            font-size: 20px;
+            font-weight: 600;
+        }
+
+    </style>
+</head>
+<body>
+    <script type="text/javascript" src="https://code.jquery.com/jquery-3.2.1.slim.min.js"></script>
+    <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/pegjs/0.9.0/peg.min.js"></script>
+    <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.2.6/ace.js"></script>
+    
+    <script type="text/javascript">
+        let Utils = function() {
+            // https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Math/random
+            function getRandomInt( min, max ) {
+                min = Math.ceil( min );
+                max = Math.floor( max );
+                return Math.floor( Math.random() * ( max - min ) ) + min;
+            }
+            /**
+             * Randomize array element order in-place.
+             * Using Durstenfeld shuffle algorithm.
+             * https://stackoverflow.com/a/12646864
+             */
+            function shuffleArray( array ) {
+                for( var i = array.length - 1; i > 0; --i ) {
+                    var j = Math.floor( Math.random() * ( i + 1 ) );
+                    var temp = array[ i ];
+                    array[ i ] = array[ j ];
+                    array[ j ] = temp;
+                }
+                return array;
+            }
+
+            // Instantiate Ace editor over a DOM element
+            function setUpAceEditor( jqoEl, opts, mode ) {
+                opts = $.extend( {}, { 
+                    minLines: 2, maxLines: 30, //enableSnippets: false,
+                    highlightActiveLine: false,
+                }, opts );
+                let paddingPx = 32;
+
+                let aceEditor = ace.edit( jqoEl.get( 0 ) );
+                aceEditor.setTheme( "ace/theme/chrome" );
+                mode && aceEditor.getSession().setMode( "ace/mode/" + mode );
+                aceEditor.getSession().setUseWrapMode( true );
+                aceEditor.renderer.setShowGutter( false );
+                aceEditor.renderer.setShowPrintMargin( false );
+                aceEditor.renderer.setPadding( paddingPx );
+                aceEditor.renderer.setScrollMargin( paddingPx + 16, paddingPx + 16, paddingPx + 16, paddingPx + 16 );
+                aceEditor.setOptions( opts );        
+                
+                aceEditor.container.style.lineHeight = 1.5;
+                aceEditor.renderer.updateFontSize();
+
+                // Clean Ace console log pollution
+                aceEditor.$blockScrolling = Infinity;
+
+                jqoEl.data( "aceEditor", aceEditor );
+                return aceEditor;
+            }
+
+            return {
+                nextInt: getRandomInt,
+                getAny: function( array ) {
+                    let a = [].concat( array );
+                    return a[ getRandomInt( 0, a.length ) ];
+                },
+                shuffleArray: shuffleArray,
+                setUpAceEditor: setUpAceEditor
+            };
+        }();
+
+        function Notebook( brand, name ) {
+            let specs = {
+                Brand:  "" + brand,
+                Name:   "" + name
+            };
+
+            specs.OSName            = getOSName( specs.Brand, specs.Name );
+            specs.OSType            = getOSType( specs.OSName );
+
+            specs.Price             = getPriceUSD( specs.OSName ); // USD
+            specs.Weight            = getWeightGrams( specs.OSName, specs.Name ); // g
+
+            specs.DiskType          = Utils.getAny([ "SSD", "HDD" ]);
+            specs.DiskSizeTotal     = getDiskSizeTotal( specs.DiskType ); // B
+            specs.RAMSize           = getRAMSize( specs.OSName ); // B
+
+            specs.Color             = getColor( specs.OSName );
+
+            specs.NumUSB3Ports      = Utils.nextInt( 0, 5 );
+            specs.ItemsAvailable    = Utils.nextInt( 0, 6 );
+
+            function getOSName( brand, name ) {
+                return "" + brand == "Apple" ? "Mac OS X"
+                    : /chrome/i.test( "" + name ) ? "Chrome OS"
+                    : Utils.getAny(
+                        [ "7", "8", "8.1" ].concat( Array( 3 ).fill( "10" ) ).map( ver => "Windows " + ver )
+                    );
+            }
+            function getOSType( os ) {
+                os = "" + os;
+                return /^mac/i.test( os ) ? "Mac OS"
+                    : /chrome/i.test( os ) ? "Chrome OS"
+                    : /windows/i.test( os ) ? "Windows"
+                    : "Other";
+            }
+            function getPriceUSD( os ) {
+                os = "" + os;
+                return /^mac/i.test( os ) ? Utils.nextInt( 10, 30 ) * 100
+                    : /chrome/i.test( os ) ? Utils.nextInt( 2, 6 ) * 100
+                    : 400 + Utils.nextInt( 1, 30 ) * 100;
+            }
+            function getWeightGrams( os, name ) {
+                os      = "" + os;
+                name    = "" + name;
+                return /^mac/i.test( os ) ? 1100 + Utils.nextInt( 0, 600 )
+                    : /chrome/i.test( os ) ? 800 + Utils.nextInt( 0, 400 )
+                    : /surface/i.test( name ) ? 1000 + Utils.nextInt( 0, 400 )
+                    : 1000 + Utils.nextInt( 400, 1700 );
+            }
+            function getColor( os ) {
+                os = "" + os;
+                return /^mac/i.test( os ) ? Utils.getAny([ "gray", "silver", "white", "gold" ])
+                    : /chrome/i.test( os ) ? Utils.getAny([ "pink", "teal", "blue", "black", "red" ])
+                    : Utils.getAny([ "blue", "red" ]
+                        .concat( Array( 2 ).fill( "silver" ) )
+                        .concat( Array( 3 ).fill( "black" ) )
+                    );
+            }
+            function getDiskSizeTotal( diskType ) {
+                return 1e9 * ( diskType == "SSD" 
+                    ? 1 << Utils.nextInt( 7, 10 )
+                    : 1 << Utils.nextInt( 8, 12 ) );
+            }
+            function getRAMSize( os ) {
+                os = "" + os;
+                return 1e9 * ( /chrome/i.test( os ) ? 1 << Utils.nextInt( 1, 2 )
+                    : 1 << Utils.nextInt( 2, 6 ) );
+            }
+
+
+            let jqoNotebook = $( "<div />" ).addClass( "ntbContainer" ).data( "props", specs ).attr( "title", JSON.stringify( specs, null, 8 ) )
+                .append( 
+                    $( "<span />" ).addClass( "ntbBrandAndName" ).text( specs.Brand + " " + specs.Name ),
+                    $( "<span />" ).addClass( "ntbPrice" ).text( "$" + specs.Price ),
+                    $( "<span />" ).addClass( "ntbConfig" ).text([ 
+                        "" + specs.OSName,
+                        "RAM: " + ( specs.RAMSize / 1e9 ) + " GB",
+                        "Disk: " + ( specs.DiskSizeTotal / 1e9 ) + " GB (" + specs.DiskType + ")",
+                        "Weight: " + ( Math.round( specs.Weight / 100 ) / 10 ) + " kg",
+                        "Color: " + specs.Color,
+                        "USB3 ports: " + specs.NumUSB3Ports
+                    ].join( " | " )),
+                    $( "<span />" ).addClass( "ntbAvailableQuantity" ).text( "Available: " + specs.ItemsAvailable )
+                );
+
+            // Public interface
+            return {
+                getSpecs:   () => specs,
+                getJQO:     () => jqoNotebook
+            };
+        }
+
+        let NotebookCreator = function() {
+            let notebookNames = {
+                Apple: [ "MacBook Air", "MacBook Pro" ],
+                HP: [ "Pavilion 15.6", "Pavilion X360", "EliteBook 8460" ], 
+                Dell: [ "XPS 13 9360", "XPS 15 9560", "Precision M3800", "Precision M4800", "Precision M5510", "Latitude E6510", "Latitude E6520", "Latitude E6410", "Latitude E6420", "Latitude E7440", "Latitude E7470" ],
+                Samsung: [ "Chromebook 3", "Chromebook Plus", "Notebook 7", "Notebook 9" ],
+                Lenovo: [ "ThinkPad T470", "ThinkPad T570", "ThinkPad X1 Carbon" ],
+                Microsoft: [ "Surface Pro 3", "Surface Pro 4" ]
+            };
+
+            function getBrand() {
+                return Utils.getAny( Object.keys( notebookNames ) );
+            }
+            function getNotebookName( brand ) {
+                return Utils.getAny( notebookNames[ "" + brand ] );
+            }
+
+            function assembleNotebook( brand ) {
+                brand = brand || getBrand();
+                let notebook = new Notebook( 
+                    brand, getNotebookName( brand )
+                );
+                return notebook;
+            }
+
+            let I = {
+                get:       brand => assembleNotebook( brand ), 
+                getMany: ( brand, nNotebooks ) => Array( Math.max( +( nNotebooks || 1 ), 1 ) ).fill( "" ).map( nothing => assembleNotebook( brand ) ),
+                getKnownBrands: () => Object.keys( notebookNames )
+            };
+            return I;
+        }();
+
+        // Extend Sizzle selectors       
+        $.expr.pseudos.nameEquals = 
+            $.expr.createPseudo( function( text ) {
+                return function( elem ) {
+                    return ( $( elem ).data( "props" ) || {} ).Name == text;
+                };
+            });
+
+        $.expr.pseudos.propStrEquals = 
+            $.expr.createPseudo( function( text ) {
+                return function( elem ) {
+                    let args = ( text || "," ).split( "," );
+                    return ( $( elem ).data( "props" ) || {} )[ args[ 0 ] ] == args[ 1 ];
+                };
+            });
+        // Avoid creating new instances of the same Regex on multiple elements
+        let cachedRegexes = {};
+        $.expr.pseudos.propStrMatches = 
+            $.expr.createPseudo( function( text ) {
+                return function( elem ) {
+                    // return propStrMatches( elem, text );
+                    let args = ( text || ",," ).split( "," );
+                    let prop = ( $( elem ).data( "props" ) || {} )[ args[ 0 ] ];
+                    // let regex = new RegExp( args[ 1 ], args[ 2 ] );
+                    let regexID =  args[ 1 ] + "," + args[ 2 ];
+                    if( !( regexID in cachedRegexes ) ) {
+                        cachedRegexes[ regexID ] = new RegExp( args[ 1 ], args[ 2 ] );
+                    }
+                    return cachedRegexes[ regexID ].test( prop );
+                };
+            });
+        $.expr.pseudos.propNumSatisfies = 
+            $.expr.createPseudo( function( text ) {
+                return function( elem ) {
+                    // return propNumSatisfies( elem, text );
+                    let args = ( text || ",," ).split( "," );
+                    let prop = +( ( $( elem ).data( "props" ) || {} )[ args[ 0 ] ] ),
+                        op = args[ 1 ], val = +( args[ 2 ] );
+                    return op == ">"  ? prop >  val
+                            : op == "<"  ? prop <  val
+                            : op == "<=" ? prop <= val
+                            : op == ">=" ? prop >= val
+                            : op == "="  ? prop == val
+                            : op == "==" ? prop == val
+                            : op == "!=" ? prop != val
+                            : false;
+                };
+            });
+
+        
+
+        function ParserHelper( qlGrammar ) {
+            qlGrammar = qlGrammar || String.raw`start = .* { return "*" }`;
+
+            // Dummy parser implementatation
+            function getDummyParser() { 
+                return {
+                    parse: function() {
+                        console.error( "Parse method not implemented. Make sure that grammar code is valid and PEG.js library is available for use." );
+                    },
+                    isDummy: true
+                };
+            }
+            let qlParser = getDummyParser();
+            buildParser( qlGrammar );
+
+            function buildParser( grammar ) {
+                let ret = { 
+                    wasSuccess: true,
+                    status:     ""
+                };
+                if( ( "" + grammar ).length > 0 ) {
+                    try {
+                        qlParser = PEG.buildParser( grammar );
+                    } catch( ex ) {
+                        qlParser = getDummyParser();
+                        ret.wasSuccess  = false;
+                        ret.status      = ex.name;
+                        ret.message     = ex.message;
+                        ret.details     = ex;
+                    }
+                }
+                return ret;
+            }
+            function parse( input ) {
+                return qlParser.parse( input );
+            }
+
+            // Exposed methods
+            let I = {
+                buildParser:    buildParser,
+                parse:          parse,
+                isGrammarOK:    () => 
+                    !( ( qlParser || { isDummy: true } ).isDummy )
+            };
+            return I;
+        };
+        let parserHelper = new ParserHelper();
+
+        function EditorErrorHelper( jqoEditor, errorMessageDesc ) {
+            errorMessageDesc = errorMessageDesc ? errorMessageDesc + ": " : "";
+            let jqoErrorNotifier = $( "<div />" ).append(
+                $( "<span />" ).addClass( "errorType" ),
+                $( "<span />" ).addClass( "message" ),
+                $( "<span />" ).addClass( "location" )
+            );
+
+            function clearError() {
+                jqoEditor.toggleClass( "error", false );
+                jqoErrorNotifier.find( " > span" ).text( "" );
+            }
+            // The details object is similar to the one returned from PEG.js on a failed buildParser or parse attempt
+            function setError( message, details ) {
+                jqoEditor.toggleClass( "error", true );
+                let errLine = ( ( ( details || {} ).location || {} ).start || {} ).line || "?";
+                let errCol  = ( ( ( details || {} ).location || {} ).start || {} ).column || "?";
+                jqoErrorNotifier
+                    .find( ".errorType" ).text( details ? details.name : "Error" ).end()
+                    .find( ".message" ).text( errorMessageDesc + message ).end()
+                    .find( ".location" ).text( "Line: " + errLine + ", column: " + errCol ).end()
+                    ;
+            }
+
+            return {
+                clearError:     clearError,
+                setError:       setError,
+                getJQO:         () => jqoErrorNotifier
+            };
+        }
+
+
+        let QueryEditor = function() {
+            // Set up query editor and error notifications
+            let queryEditor = $( "<div />" ).attr( "id", "queryEditor" );
+            let queryErrorHelper = new EditorErrorHelper( queryEditor, "Problem parsing query" );
+            let parsedQueryOutput = $( "<div />" ).attr( "id", "parsedQueryOutput" ).append(
+                //$( "<span />" ).addClass( "fieldDescription" ).text( "Sizzle filter" ),
+                $( "<span />" ).addClass( "sizzleFilterExpr" )
+            );
+            let queryEditorContainer = $( "<div />" ).attr( "id", "queryEditorContainer" ).append(
+                //$( "<textarea />" ).attr({ autofocus: "true", placeholder: "Type your query here" }),
+                $( "<span />" ).addClass( "fieldDescription" ).text( "Query" ),
+                queryEditor,
+                queryErrorHelper.getJQO().attr( "id", "queryError" ),
+                parsedQueryOutput
+            );
+            let lastAppliedFilter = "";
+
+            // Cache elements for faster access
+            let notebookElements = $();
+
+            // Show a default query if none saved
+            let sampleQuery = String.raw`Weight < 1.6 kg and ( Name ~ /surface.*[34]/i or Brand = "Apple" or Color ~ /blue|white/i ) and DiskType = "SSD"`;
+
+            // Set up Ace editor
+            let aceQueryEditor = Utils.setUpAceEditor( queryEditor );
+            aceQueryEditor.getSession().on( "change", function( event ) {
+                onQueryChanged();
+            });
+            localStorageLoad();
+
+            function localStorageLoad() {
+                let savedVal = localStorage ? localStorage.getItem( "query.default" ) : undefined;
+                setValue( typeof savedVal == "string" ? savedVal : sampleQuery );
+            }
+            function localStorageSave( query ) {
+                localStorage ? localStorage.setItem( "query.default", query ) : "";
+            }
+            function setValue( val ) {
+                return aceQueryEditor.setValue( val, 1 );
+            }
+            function applyFilter( filterExpr ) {
+                if( filterExpr != lastAppliedFilter ) {
+                    parsedQueryOutput.find( ".sizzleFilterExpr" ).text( filterExpr );
+                    lastAppliedFilter = filterExpr;
+                    try {
+                        notebookElements
+                            .addClass( "fail" )
+                            //.removeClass( "pass" )
+                            .filter( filterExpr )
+                            .removeClass( "fail" )
+                            //.addClass( "pass" )
+                        ;
+                    } catch( ex ) {
+                        onQueryError( ex.message, ex );
+                    }
+                }
+            }
+            
+            function onQueryChanged() {
+                queryErrorHelper.clearError();
+
+                // Save to local storage
+                let query = aceQueryEditor.getValue(); //$( this ).val();
+                localStorageSave( query );
+
+                let sizzleExpr = "*";
+                if( parserHelper.isGrammarOK() ) {
+                    // Parse user query and build a Sizzle selector expression
+                    try {
+                        sizzleExpr = parserHelper.parse( query );
+                    } catch( ex ) {
+                        //console.error( "Problem parsing query: " + ex.message );
+                        onQueryError( ex.message, ex );
+                        sizzleExpr = "*";
+                    }
+                }
+                // Apply Sizzle filter to elements
+                applyFilter( sizzleExpr );
+            }
+            function onQueryError( message, details ) {
+                queryErrorHelper.setError( message, details );
+            }
+
+            // Public interface
+            return {
+                triggerChanged: onQueryChanged,
+                getJQO:         () => queryEditorContainer,
+                setSearchableElements:  jqoElements => {
+                    notebookElements = jqoElements;
+                    lastAppliedFilter = "";
+                },
+                setValue:       setValue
+            };
+        }();
+
+        let GrammarEditor = function( onQueryChanged ) {
+            // Set up grammar editor and error notifications
+            let grammarEditor = $( "<div />" ).attr( "id", "grammarEditor" ).addClass( "flexChildFillAll" );
+            let grammarErrorHelper = new EditorErrorHelper( grammarEditor, "Problem building parser" );
+            let grammarEditorContainer = $( "<div />" ).attr( "id", "grammarEditorContainer" ).addClass( "flexContainer" ).append(
+                //$( "<textarea />" ).attr({ placeholder: "Type your grammar rules here" })
+                $( "<span />" ).addClass( "fieldDescription" ).text( "Grammar rules" ),
+                grammarEditor,
+                grammarErrorHelper.getJQO().attr( "id", "grammarError" )
+            );
+
+            // Show a default grammar if none saved
+            let sampleGrammar = String.raw`/* Shared data and functions */ {
+    // Sizzle.js-related
+    const acceptAllSelector = "*";
+    function pseudoSelector( ...args ) {
+        return ":" + args[ 0 ] + "(" + args.slice( 1 ).join( "," ) + ")";
+    }
+    function joinOrConditions( orConditions ) {
+        return [].concat( orConditions ).join( ", " );
+    }
+    function joinAndConditions( andConditions ) {
+         return [].concat( andConditions ).join( "" );
+    }
+    
+    // Unit/prefix conversions
+    const gramsInOneUSPound = 453.59237;
+    function getMultiplier( prefix ) {
+        return prefixToMultiplier[ prefix || "" ] || 1;
+    }
+    let prefixToMultiplier = {
+        da:         1e1, 
+        k:          1e3,
+        M:          1e6,
+        G:          1e9,
+        T:          1e12,
+        "":         1e0,
+        undefined:  1e0
+    };
+}
+
+start
+    = q:query { // We're on the topmost level, so can finally join all or'ed subexpressions
+        return joinOrConditions( q );
+    }
+    / __* {
+        return acceptAllSelector;
+    }
+    
+query
+    = __* left:andedConditions right:( operatorOr query )? __* {
+        return [].concat( left, right ? right[ 1 ] : [] );
+    }
+    
+andedConditions
+    = left:subquery right:( operatorAnd subquery )* {
+        let lSubquery = [].concat( left );
+        right.map( el => [].concat( el[ 1 ] ) ).forEach( rSubquery => {
+            let combinedSubquery = [];
+            lSubquery.forEach( lTerm => {
+                rSubquery.forEach( rTerm => {
+                    combinedSubquery.push( joinAndConditions( [].concat( lTerm, rTerm ) ) );
+                });
+            });
+            lSubquery = combinedSubquery; 
+        });
+        return lSubquery;
+    }
+
+subquery
+    = condition / expressionInBrackets
+
+expressionInBrackets
+    = "(" __* q:query __*  ")" {
+        return q;
+    }
+
+condition
+    = prop:strProperty __* "=" __* val:str {
+        return pseudoSelector( "propStrEquals", prop, val );
+    }
+    / prop:strProperty __* "~" __* rx:regex {
+        return pseudoSelector( "propStrMatches", prop, rx.pattern, rx.flags );
+    }
+    / prop:numProperty __* op:numOperator __* val:num {
+        return pseudoSelector( "propNumSatisfies", prop, op, val );
+    }
+    / prop:currencyProperty __* op:numOperator __* val:currency {
+        return pseudoSelector( "propNumSatisfies", prop, op, val );
+    }
+    / prop:weightProperty __* op:numOperator __* val:weight {
+        return pseudoSelector( "propNumSatisfies", prop, op, val );
+    }
+    / prop:numBytesProperty __* op:numOperator __* val:numBytes {
+        return pseudoSelector( "propNumSatisfies", prop, op, val );
+    }
+
+comment
+    = lineComment / blockComment
+lineComment
+    = "//" [^\n\r]*
+blockComment
+    = "/*" ( !"*/" . )* "*/"
+
+operatorAnd
+  = __+ "and"i __+
+  / __* "&" "&"? __*
+operatorOr
+  = __+ "or"i __+
+  / __* "|" "|"? __*
+
+numBytesProperty
+    = "DiskSizeTotal" / "RAMSize"
+numBytes
+    = val:numFloat __* prefix:$[kMGT]? "B" {
+        return getMultiplier( prefix ) * val;
+    }
+weightProperty
+    = "Weight"
+weight
+    = val:numFloat __* prefix:$( "da" / [kMGT] )? unit:"g" {
+        return getMultiplier( prefix ) * val;
+    }
+    / val:numFloat __* ( "lb" / "pound" ) "s"? {
+        return val * gramsInOneUSPound;
+    }
+numFloat
+    = num:$( [0-9]+ ( "." [0-9]* )? ) {
+        return +num;
+    }
+currencyProperty
+    = "Price"
+currency
+    = "$" val:num {
+        return val;
+    }
+numProperty
+    = "ItemsAvailable" / "NumUSB3Ports"
+numOperator
+    = op:$( [<>=] "="? / "!=" ) {
+        return op;
+    }
+num
+    = num:$[0-9]+ {
+        return +num;
+    }
+regex
+    = "/" pattern:$[^/]+ "/" flags:$[gimuy]* {
+        return { pattern: pattern, flags: flags };
+    }
+strProperty
+    = "Name" / "OSName" / "Color" / "DiskType" / "OSType" / "Brand"
+str
+    = "\"" val:$[^\"]* "\"" {
+        return val;
+    }
+__
+    = [ \t\v\f\n\r]
+    / comment
+`;
+
+            let aceGrammarEditor = Utils.setUpAceEditor( grammarEditor, {
+                minLines: 20, maxLines: false
+            }, "javascript" );
+            aceGrammarEditor.getSession().on( "change", function( event ) {
+                onGrammarChanged();
+            });
+            localStorageLoad();
+            
+            function localStorageLoad() {
+                let savedVal = localStorage ? localStorage.getItem( "grammar.default" ) : undefined;
+                setValue( typeof savedVal == "string" ? savedVal : sampleGrammar );
+            }
+            function localStorageSave( grammar ) {
+                localStorage ? localStorage.setItem( "grammar.default", grammar ) : "";
+            }
+            function setValue( val ) {
+                return aceGrammarEditor.setValue( val, -1 );
+            }
+
+            function onGrammarChanged() {
+                let grammar = aceGrammarEditor.getValue();
+                let buildResult = grammar == "" ? {
+                    wasSuccess: true
+                } : parserHelper.buildParser( grammar );
+                
+                localStorageSave( grammar );
+                if( buildResult.wasSuccess ) {
+                    onParserChanged();
+                } else {
+                    onGrammarError( buildResult.message, buildResult.details );
+                }
+            }
+            function onParserChanged() {
+                // Clear grammar error
+                grammarErrorHelper.clearError();
+                
+                // Grammar was changed, so reparse query
+                onQueryChanged();
+            }
+            function onGrammarError( message, details ) {
+                grammarErrorHelper.setError( message, details );
+                
+                // Reset query parse output
+                onQueryChanged();
+            }
+
+
+            // Public interface
+            return {
+                triggerChanged: onParserChanged,
+                getJQO:         () => grammarEditorContainer,
+                setValue:       setValue
+            };
+        }( QueryEditor.triggerChanged );
+        
+        // Assemble random notebooks for searching
+        let availableNotebooks = Utils.shuffleArray( []
+            .concat( NotebookCreator.getMany( "Apple", 200 ) )
+            .concat( NotebookCreator.getMany( "HP", 50 ) )
+            .concat( NotebookCreator.getMany( "Dell", 280 ) )
+            .concat( NotebookCreator.getMany( "Samsung", 180 ) )
+            .concat( NotebookCreator.getMany( "Lenovo", 120 ) )
+            .concat( NotebookCreator.getMany( "Microsoft", 180 ) )
+        );
+        let notebookElements = availableNotebooks.map( n => n.getJQO() );
+        QueryEditor.setSearchableElements( notebookElements.reduce( $.merge ) );
+        QueryEditor.triggerChanged();
+
+        // Document ready - append editors and searchable elements to DOM
+        $( function() {
+            $( "body" ).append( 
+                $( "<div />" ).attr( "id", "queryEditorAndElements" ).addClass( "flexContainer" ).append(
+                    QueryEditor.getJQO(),
+                    $( "<div />" ).attr( "id", "ntbAllNotebooks" ).addClass( "flexChildFillAll" ).append( 
+                        notebookElements
+                    )
+                ), 
+                GrammarEditor.getJQO(),
+                $( "<div />" ).attr( "id", "aboutBox" ).append( 
+                    $( "<span />" ).text( "Developed as part of DNA Agent Commander" ),
+                    $( "<span />" ).addClass( "Separator" ).text( "|" ),
+                    $( "<span />" ).text( "Powered by PEG.js, Ace and jQuery Slim; uses Open Sans font" ),
+                    $( "<span />" ).addClass( "Separator" ).text( "|" ),
+                    $( "<span />" ).append( 
+                        "Email me at ", 
+                        $( "<a />" ).addClass( "emailLink" )
+                            .attr( "href", "mailto:Tomasz.Szreder(at)dynatrace.com?cc=Tomasz.Szreder(at)gmail.com&subject=[CQL]" )
+                            .text( "Tomasz.Szreder(at)dynatrace(dot)com" ) 
+                    )
+                ),
+                $( "<div />" ).attr( "id", "helpBox" ).append(
+                    $( "<a />" ).attr( "href", "" ).addClass( "showHelp" ).text( "?" ).on( "click", event => { event.preventDefault(); } )
+                )
+            );
+        });
+    </script>
+</body>
+</html>
