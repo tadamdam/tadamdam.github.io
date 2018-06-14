@@ -4,10 +4,7 @@ Throughout the article we will craft grammar rules and test queries using a simp
 
 It depends on PEG.js, Ace, and jQuery Slim hosted via CDN, but is otherwise a single-file, self-contained web page, so there is no setup needed – just open the file in a modern browser and you're ready. (Grammar and query editors use localStorage to remember their contents, but be sure to save your work outside of the application.)
 
-<p align="center>
-<img src="cql-playground-guide.png" alt="CQL Playground UI" />
-<!-- ![CQL Playground UI](cql-playground-guide.png "CQL Playground UI") -->
-</p>
+![alt text](cql-playground-guide.png "Logo Title Text 1")
 
 Usage is straightforward: the grammar editor to the left lets you refine parser, which effectively determines what the query language is capable of. Your grammar is immediately compiled to a parser on every change; in case of problems, an error message is displayed at the bottom along with the error context (line, column).
 
